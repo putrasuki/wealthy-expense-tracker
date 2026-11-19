@@ -695,6 +695,8 @@ function viewSettings(){
       '<div class="settings-row"><div><h4>Mode Gelap</h4><p>Default saat aplikasi pertama dibuka.</p></div>'+
         '<button class="btn-ghost btn-sm" data-action="toggle-theme">'+ico(state.theme==='dark'?'sun':'moon',15)+' '+(state.theme==='dark'?'Mode Terang':'Mode Gelap')+'</button></div>'+
       '<div class="settings-row"><div><h4>Mata Uang</h4><p>Format Rupiah Indonesia (Rp 1.500.000).</p></div><span class="pill income">IDR</span></div>'+
+      '<div class="settings-row"><div><h4>Pasang di Perangkat</h4><p>Buka seperti aplikasi dari layar utama HP, juga bisa offline.</p></div>'+
+        '<button class="btn-ghost btn-sm" data-action="install-app">'+ico('download',15)+' Pasang</button></div>'+
     '</div>'+
     '<div class="card"><div class="card-head"><div><div class="card-title">Backup & Restore</div><div class="card-sub">Simpan data ke perangkat Anda</div></div></div>'+
       '<div class="settings-row"><div><h4>Export Backup Lengkap (JSON)</h4><p>Semua akun, transaksi, anggaran, target, dan jadwal.</p></div>'+
@@ -1138,6 +1140,14 @@ document.addEventListener('click',function(e){
       const r=byId(state.recurring,id);if(!r)return;
       r.active=!r.active;saveState();renderView();toast(r.active?'Jadwal diaktifkan':'Jadwal dijeda');break;
     }
+    case 'install-app':
+      if(installPrompt){
+        installPrompt.prompt();
+        installPrompt.userChoice.then(function(){installPrompt=null;renderView();});
+      }else{
+        toast('Chrome HP: menu ⋮ → Tambahkan ke Layar Utama. Safari: Bagikan → Tambahkan ke Layar Utama.','warn');
+      }
+      break;
     case 'export-json':exportJSON();break;
     case 'export-csv':exportCSV();break;
     case 'import-json':document.getElementById('import-file').click();break;
@@ -1315,6 +1325,14 @@ document.addEventListener('keydown',function(e){
     if(a)a.focus();else openTxModal();
   }
 });
+
+/* ============================ PWA / OFFLINE ============================ */
+let installPrompt=null;
+window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();installPrompt=e;});
+window.addEventListener('appinstalled',function(){installPrompt=null;toast('Wealthy terpasang di perangkat');});
+if('serviceWorker' in navigator){
+  window.addEventListener('load',function(){navigator.serviceWorker.register('./sw.js').catch(function(){})});
+}
 
 /* ============================ INIT ============================ */
 syncCustomCats();
