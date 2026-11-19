@@ -18,6 +18,8 @@ html[data-theme="light"]{
   --c-tagihan:#8A7A3F; --c-kesehatan:#3F7D6E; --c-pendidikan:#4F6D8A; --c-rumah:#9A6B4F;
   --c-liburan:#3E8A7A; --c-gaji:#1E5B48; --c-freelance:#527A8C; --c-investasi:#6B7F4A;
   --c-transfer:#6E7269; --c-lainnya:#8A8D84;
+  --c-custom1:#6E7F56; --c-custom2:#8C5A6E; --c-custom3:#3F6E7A;
+  --c-custom4:#9A6B3F; --c-custom5:#6B6A9A; --c-custom6:#7A8A3F;
   color-scheme:light;
 }
 html[data-theme="dark"]{
@@ -29,6 +31,8 @@ html[data-theme="dark"]{
   --c-tagihan:#C9B978; --c-kesehatan:#7BBFAE; --c-pendidikan:#8FB0CC; --c-rumah:#C79B7C;
   --c-liburan:#7CC4B4; --c-gaji:#8FD1B4; --c-freelance:#93B9C9; --c-investasi:#A9BE83;
   --c-transfer:#9AA096; --c-lainnya:#A2A69C;
+  --c-custom1:#A9BE83; --c-custom2:#C79CB0; --c-custom3:#7FB6C2;
+  --c-custom4:#C99C6E; --c-custom5:#A6A5D0; --c-custom6:#B4C67E;
   color-scheme:dark;
 }
 *{box-sizing:border-box;margin:0;padding:0}

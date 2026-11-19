@@ -100,6 +100,25 @@ const NAV = [
   {id:'settings',label:'Pengaturan & Data',icon:'settings',title:'Pengaturan & Data',sub:'Backup, restore & preferensi aplikasi'}
 ];
 function catColor(c){return cssVar((CATS[c]||CATS['Lainnya']).color)}
+const CUSTOM_CAT_COLORS=['--c-custom1','--c-custom2','--c-custom3','--c-custom4','--c-custom5','--c-custom6'];
+function cleanCatName(raw){return String(raw||'').trim().replace(/\s+/g,' ').slice(0,24)}
+function findCatName(raw){
+  const n=cleanCatName(raw);if(!n)return null;
+  return Object.keys(CATS).find(c=>c.toLowerCase()===n.toLowerCase())||null;
+}
+function registerCustomCategory(raw){
+  const found=findCatName(raw);if(found)return found;
+  const n=cleanCatName(raw);if(!n)return null;
+  state.customCategories.push(n);
+  CATS[n]={icon:ico('dots',16),color:CUSTOM_CAT_COLORS[(state.customCategories.length-1)%CUSTOM_CAT_COLORS.length]};
+  refreshCatLists();saveState();return n;
+}
+function syncCustomCats(){
+  state.customCategories.forEach((n,i)=>{
+    if(n&&!CATS[n])CATS[n]={icon:ico('dots',16),color:CUSTOM_CAT_COLORS[i%CUSTOM_CAT_COLORS.length]};
+  });
+  refreshCatLists();
+}
 function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8)}
 function pad(n){return String(n).padStart(2,'0')}
@@ -147,6 +166,7 @@ function normalize(s){
   s.transactions=Array.isArray(s.transactions)?s.transactions:[];
   s.recurring=Array.isArray(s.recurring)?s.recurring:[];
   s.goals=Array.isArray(s.goals)?s.goals:[];
+  s.customCategories=Array.isArray(s.customCategories)?s.customCategories.map(cleanCatName).filter(Boolean).filter((v,i,a)=>a.findIndex(x=>x.toLowerCase()===v.toLowerCase())===i):[];
   s.budgets=s.budgets&&typeof s.budgets==='object'?s.budgets:{};
   s.theme=s.theme==='light'?'light':'dark';
   s.transactions.forEach(t=>{t.amount=parseAmount(t.amount);t.tags=Array.isArray(t.tags)?t.tags:[];t.type=t.type||'expense';});
@@ -162,7 +182,7 @@ function saveState(){
 function emptyState(theme){
   return {version:1,theme:theme||'light',
     accounts:[{id:'def',name:'Dompet Utama',type:'cash',initialBalance:0,createdAt:new Date().toISOString()}],
-    transactions:[],recurring:[],budgets:{},goals:[]};
+    transactions:[],recurring:[],budgets:{},goals:[],customCategories:[]};
 }
 function seedData(theme){
   theme = theme==='dark'?'dark':'light';
@@ -221,7 +241,7 @@ function seedData(theme){
     {id:'g2',name:'Laptop Baru',emoji:'L',target:12000000,saved:4250000,deadline:monthDay(6,1,9).slice(0,10),createdAt:new Date().toISOString()},
     {id:'g3',name:'Liburan Bali',emoji:'B',target:8000000,saved:2100000,deadline:monthDay(4,1,9).slice(0,10),createdAt:new Date().toISOString()}
   ];
-  const s={version:1,theme:theme,accounts:accounts,transactions:transactions,recurring:recurring,goals:goals,
+  const s={version:1,theme:theme,accounts:accounts,transactions:transactions,recurring:recurring,goals:goals,customCategories:[],
     budgets:{'Makan & Minum':2000000,'Transport':800000,'Belanja':1500000,'Hiburan':500000,'Tagihan':1500000,'Kesehatan':400000}};
   return s;
 }
@@ -763,11 +783,18 @@ function toast(msg,type){
   setTimeout(()=>{el.style.opacity='0';el.style.transform='translateX(20px)';el.style.transition='.25s';setTimeout(()=>el.remove(),260)},3200);
 }
 function opts(arr,sel){return arr.map(x=>'<option value="'+esc(x.v)+'"'+(sel===x.v?' selected':'')+'>'+esc(x.l)+'</option>').join('')}
-const EXP_CATS=Object.keys(CATS).filter(c=>!['Gaji','Freelance','Investasi','Transfer'].includes(c));
-const INC_CATS=['Gaji','Freelance','Investasi','Lainnya'];
-function catOptions(type,sel){
-  const list=type==='income'?INC_CATS:type==='transfer'?['Transfer']:EXP_CATS;
-  return opts(list.map(c=>({v:c,l:c})),sel);
+let EXP_CATS=[],INC_CATS=[];
+function refreshCatLists(){
+  EXP_CATS=Object.keys(CATS).filter(c=>!['Gaji','Freelance','Investasi','Transfer'].includes(c));
+  INC_CATS=Object.keys(CATS).filter(c=>['Gaji','Freelance','Investasi'].includes(c)||state.customCategories.includes(c));
+  if(!INC_CATS.includes('Lainnya'))INC_CATS.push('Lainnya');
+}
+refreshCatLists();
+function catOptions(type,sel,withCustom){
+  let list=(type==='income'?INC_CATS:type==='transfer'?['Transfer']:EXP_CATS).slice();
+  if(sel&&!list.includes(sel))list.push(sel);
+  if(withCustom&&type!=='transfer'&&!list.includes('__custom__'))list.push('__custom__');
+  return opts(list.map(c=>({v:c,l:c==='__custom__'?'+ Kategori baru...':c})),sel);
 }
 function accOptions(sel,extra){
   return opts((extra||[]).concat(state.accounts.map(a=>({v:a.id,l:a.name}))),sel);
@@ -787,7 +814,8 @@ function openTxModal(id){
       '<button type="button" class="type-tab'+(type===x[0]?' active':'')+'" data-action="tx-type" data-type="'+x[0]+'">'+x[1]+'</button>').join('')+'</div>'+
     '<div class="field"><label class="lbl">Nominal (Rupiah)</label><input type="text" name="amount" class="amount-input amt-format" inputmode="numeric" placeholder="Rp 0" value="'+groupDigits(t?t.amount:'')+'" required></div>'+
     '<div class="form-grid">'+
-      '<div class="field"><label class="lbl">Kategori</label><select name="category" id="tx-category">'+catOptions(type,t?t.category:(type==='income'?'Gaji':type==='transfer'?'Transfer':'Makan & Minum'))+'</select></div>'+
+      '<div class="field"><label class="lbl">Kategori</label><select name="category" id="tx-category">'+catOptions(type,t?t.category:(type==='income'?'Gaji':type==='transfer'?'Transfer':'Makan & Minum'),!t)+'</select></div>'+
+      '<div class="field" id="tx-custom-wrap" style="display:none"><label class="lbl">Nama Kategori Baru</label><input type="text" name="customCategory" id="tx-custom" placeholder="Contoh: Hewan Peliharaan" maxlength="24"></div>'+
       '<div class="field"><label class="lbl">Sub-kategori</label><input type="text" name="subcategory" list="sub-list" placeholder="Opsional" value="'+esc(t?t.subcategory:'')+'">'+subDatalist()+'</div>'+
       '<div class="field"><label class="lbl">Dompet / Akun</label><select name="accountId">'+accOptions(t?t.accountId:(state.accounts[0]||{}).id)+'</select></div>'+
       '<div class="field" id="to-account-wrap" style="'+(type==='transfer'?'':'display:none')+'"><label class="lbl">Ke Dompet</label><select name="toAccountId">'+accOptions(t?t.toAccountId:(state.accounts[1]||state.accounts[0]||{}).id,[{v:'',l:'— Pilih tujuan —'}])+'</select></div>'+
@@ -810,7 +838,12 @@ function openTxModal(id){
 function setModalType(type){
   document.querySelectorAll('.type-tab').forEach(b=>b.classList.toggle('active',b.dataset.type===type));
   const cat=document.getElementById('tx-category');
-  if(cat) cat.innerHTML=catOptions(type,type==='transfer'?'Transfer':cat.value);
+  if(cat){
+    const sel=cat.value==='__custom__'?(type==='income'?'Gaji':'Makan & Minum'):cat.value;
+    cat.innerHTML=catOptions(type,type==='transfer'?'Transfer':sel,true);
+  }
+  const cw=document.getElementById('tx-custom-wrap');
+  if(cw)cw.style.display='none';
   const wrap=document.getElementById('to-account-wrap');
   if(wrap) wrap.style.display=type==='transfer'?'':'none';
 }
@@ -821,7 +854,8 @@ function openBudgetModal(cat){
   const avail=Object.keys(CATS).filter(c=>c!=='Transfer'&&(!used.includes(c)||c===cur)).sort();
   openModal(modalHead(cat?'Edit Anggaran':'Atur Anggaran','Batas pengeluaran maksimal per bulan per kategori.')+
     '<form data-form="budget" data-cat="'+esc(cur||'')+'"><div class="modal-body">'+
-    '<div class="field"><label class="lbl">Kategori</label><select name="category"'+(cat?' disabled':'')+'>'+opts(avail.map(c=>({v:c,l:c})),cur)+'</select></div>'+
+    '<div class="field"><label class="lbl">Kategori</label><select name="category" id="budget-category"'+(cat?' disabled':'')+'>'+opts(avail.map(c=>({v:c,l:c})),cur)+'<option value="__custom__">+ Kategori baru...</option></select></div>'+
+    '<div class="field" id="budget-custom-wrap" style="display:none"><label class="lbl">Nama Kategori Baru</label><input type="text" name="customCategory" id="budget-custom" placeholder="Contoh: Hewan Peliharaan" maxlength="24"></div>'+
     '<div class="field"><label class="lbl">Batas Bulanan (Rp)</label><input type="text" name="limit" class="amt-format amount-input" inputmode="numeric" value="'+groupDigits(cur?state.budgets[cur]:'')+'" placeholder="Rp 2.000.000" required></div>'+
     '</div><div class="modal-foot"><button type="button" class="btn-ghost" data-action="close-modal">Batal</button>'+
     '<button type="submit" class="btn-primary">'+ico('check',15)+' Simpan</button></div></form>');
@@ -906,7 +940,7 @@ document.getElementById('import-file').addEventListener('change',function(e){
       const d=parsed&&parsed.data?parsed.data:parsed;
       if(!d||!Array.isArray(d.accounts)||!Array.isArray(d.transactions)) throw new Error('Format tidak dikenali');
       askConfirm('Restore backup?','Data saat ini (<strong>'+state.transactions.length+' transaksi</strong>) akan ditimpa oleh file ini (<strong>'+d.transactions.length+' transaksi</strong>).',()=>{
-        state=normalize(d);processRecurring();saveState();renderView();toast('Backup berhasil dipulihkan');
+        state=normalize(d);syncCustomCats();processRecurring();saveState();renderView();toast('Backup berhasil dipulihkan');
       });
     }catch(err){toast('File tidak valid: '+err.message,'err')}
     e.target.value='';
@@ -1028,6 +1062,18 @@ document.addEventListener('change',function(e){
   if(t.id==='f-account'){ui.filters.account=t.value;renderTxList();return}
   if(t.id==='f-from'){ui.filters.from=t.value;renderTxList();return}
   if(t.id==='f-to'){ui.filters.to=t.value;renderTxList();return}
+  if(t.id==='tx-category'){
+    const w=document.getElementById('tx-custom-wrap');
+    if(w)w.style.display=t.value==='__custom__'?'flex':'none';
+    if(t.value==='__custom__'){const c=document.getElementById('tx-custom');if(c)c.focus()}
+    return;
+  }
+  if(t.id==='budget-category'){
+    const w=document.getElementById('budget-custom-wrap');
+    if(w)w.style.display=t.value==='__custom__'?'flex':'none';
+    if(t.value==='__custom__'){const c=document.getElementById('budget-custom');if(c)c.focus()}
+    return;
+  }
   if(t.id==='tx-recurring'){
     const b=document.getElementById('repeat-box');if(b)b.style.display=t.checked?'flex':'none';return;
   }
@@ -1050,7 +1096,12 @@ document.addEventListener('submit',function(e){
     const date=String(d.get('date')||'');
     if(!date){toast('Tanggal wajib diisi','err');return}
     const old=id?byId(state.transactions,id):null;
-    const payload={date,type,amount,category:type==='transfer'?'Transfer':d.get('category'),
+    let cat=type==='transfer'?'Transfer':d.get('category');
+    if(cat==='__custom__'){
+      cat=registerCustomCategory(d.get('customCategory'));
+      if(!cat){toast('Nama kategori wajib diisi (maks. 24 karakter)','err');return}
+    }
+    const payload={date,type,amount,category:cat,
       subcategory:type==='transfer'?(d.get('subcategory')||'Antar Dompet'):(d.get('subcategory')||''),
       accountId,toAccountId,note:d.get('note')||'',tags:parseTags(d.get('tags'))};
     const wantsRecurring=!!d.get('recurring');
@@ -1074,7 +1125,11 @@ document.addEventListener('submit',function(e){
     return;
   }
   if(form==='budget'){
-    const cat=f.dataset.cat||d.get('category');
+    let cat=f.dataset.cat||d.get('category');
+    if(cat==='__custom__'){
+      cat=registerCustomCategory(d.get('customCategory'));
+      if(!cat){toast('Nama kategori wajib diisi (maks. 24 karakter)','err');return}
+    }
     const limit=parseAmount(d.get('limit'));
     if(!cat){toast('Pilih kategori','err');return}
     if(limit<=0){delete state.budgets[cat];toast('Anggaran dihapus (nominal 0)','warn')}
@@ -1119,6 +1174,7 @@ document.addEventListener('keydown',function(e){
 });
 
 /* ============================ INIT ============================ */
+syncCustomCats();
 processRecurring();
 saveState();
 renderView();
