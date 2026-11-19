@@ -26,13 +26,19 @@ styles.css   sistem desain editorial (kertas & tinta)
 app.js       state, logika, dan render
 ```
 
-## Jalankan lokal
+## Buka aplikasi
+
+**URL produksi (yang sudah di-deploy): https://wealthy-vercel.vercel.app**
+
+`http://localhost:8000` **hanya** untuk menjalankan salinan di komputer sendiri saat development. Bukan alamat aplikasi live, dan tidak perlu dibuka untuk memakai versi Vercel.
+
+Opsional, kalau mau jalankan lokal:
 
 ```powershell
 python -m http.server 8000
 ```
 
-Lalu buka http://localhost:8000
+lalu buka http://localhost:8000
 
 ## Deploy
 
