@@ -368,4 +368,48 @@ select{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns=
   .modal-foot{flex-direction:column-reverse} .modal-foot button{width:100%}
   .site-foot{flex-direction:column;gap:5px}
 }
+/* ============================ MOBILE POLISH ============================ */
+html,body{max-width:100%;overflow-x:hidden;overscroll-behavior-x:none}
+button,a,input,select,textarea{touch-action:manipulation}
+button{-webkit-tap-highlight-color:transparent}
+#app,#main,#content{max-width:100%;overflow-x:clip}
+#content>*{max-width:100%}
+.topbar,.page-head,.settings-row,.month-nav{flex-wrap:wrap}
+.kpi-value,.acc-bal,.tx-amt{overflow-wrap:anywhere}
+.sync-code-input{width:100%;max-width:170px}
+
+@media(max-width:620px){
+  html,body{overflow-x:hidden}
+  #content{padding:18px 13px 28px}
+  .topbar{padding:12px 13px;gap:8px}
+  .topbar h1{font-size:19px}
+  .topbar p{font-size:10.5px}
+  .page-head h2{font-size:25px}
+  .card{padding:14px}
+  .kpi{padding:14px 11px}
+  .kpi-value{font-size:18px}
+  .kpi-foot{flex-wrap:wrap;gap:5px}
+  .month-nav{gap:8px;padding:9px 10px}
+  .month-nav-label{font-size:14px}
+  .quick-add{grid-template-columns:1fr;gap:8px}
+  .quick-add>*{width:100%;min-width:0}
+  .filters{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .filters .search-wrap{grid-column:1/-1}
+  .filters>*{min-width:0}
+  .tx-row{grid-template-columns:30px minmax(0,1fr) auto;gap:8px;padding:12px 2px}
+  .tx-row .c-main,.tx-row .c-amt{min-width:0}
+  .tx-row .c-amt{grid-column:3;text-align:right}
+  .tx-sub{white-space:normal;overflow-wrap:anywhere}
+  .acc-bal{font-size:21px}
+  .settings-row{align-items:flex-start;flex-direction:column;gap:8px}
+  .settings-row>*{max-width:100%}
+  .sync-code-input{max-width:100%}
+  .form-grid,.type-tabs{gap:10px}
+  .modal-body{padding:18px 15px}
+  .modal-foot{flex-direction:column-reverse}
+  .modal-foot button{width:100%}
+  .site-foot{flex-direction:column;gap:5px}
+  .btn-primary,.btn-ghost{white-space:nowrap}
+}
+
 @media print{#sidebar,.topbar,#fab,.tx-actions{display:none}#main{margin:0}}
