@@ -10,6 +10,7 @@ const SYNC_URL = 'https://xzjmqwcbctatupwuyylk.supabase.co';
 const SYNC_KEY = 'sb_publishable_Ga8hnLSz_wuMi1In5FoTuQ_973GcQF4';
 const SYNC_CODE_KEY = 'wealthy_sync_code';
 const SYNC_AUTO_KEY = 'wealthy_sync_auto';
+const SYNC_BACKUP_KEY = 'wealthy_sync_backup';
 const DEFAULT_SYNC_CODE = '73940281';
 
 const ICONS = {
@@ -710,6 +711,7 @@ function viewSync(){
         '<button class="btn-primary" data-action="sync-push">'+ico('arrow',15)+' Kirim ke Cloud</button>'+
         '<button class="btn-ghost" data-action="sync-pull">'+ico('refresh',15)+' Ambil dari Cloud</button>'+
         '<button class="btn-ghost" data-action="sync-save">Simpan Kode</button>'+
+        '<button class="btn-ghost" data-action="sync-restore">Pulihkan Sebelum Ambil</button>'+
       '</div>'+
     '</div>'+
     '<div class="card"><div class="card-head"><div><div class="card-title">Cara Pakai</div><div class="card-sub">HP ↔ Laptop</div></div></div>'+
@@ -1187,6 +1189,13 @@ document.addEventListener('click',function(e){
       setSyncCode(v);renderView();toast('Kode sinkron disimpan');break;
     }
     case 'sync-auto':setSyncAuto(!getSyncAuto());renderView();break;
+    case 'sync-restore':{
+      const raw=localStorage.getItem(SYNC_BACKUP_KEY);
+      if(!raw){toast('Belum ada cadangan','err');break}
+      try{state=normalize(JSON.parse(raw));saveState({noSync:true});renderView();toast('Data berhasil dipulihkan')}
+      catch(e){toast('Gagal memulihkan data','err')}
+      break;
+    }
     case 'sync-push':cloudPush(true);break;
     case 'sync-pull':
       askConfirm('Ambil data dari cloud?','Data di perangkat ini akan ditimpa oleh data terakhir di cloud.',()=>cloudPull(true));break;
@@ -1380,7 +1389,7 @@ if('serviceWorker' in navigator){
 let syncTimer=null,syncBusy=false,lastSyncAt=null;
 function getSyncCode(){return (localStorage.getItem(SYNC_CODE_KEY)||DEFAULT_SYNC_CODE).trim()}
 function setSyncCode(v){localStorage.setItem(SYNC_CODE_KEY,String(v).trim())}
-function getSyncAuto(){return localStorage.getItem(SYNC_AUTO_KEY)!=='0'}
+function getSyncAuto(){return localStorage.getItem(SYNC_AUTO_KEY)==='1'}
 function setSyncAuto(v){localStorage.setItem(SYNC_AUTO_KEY,v?'1':'0')}
 function syncHeaders(){return {'apikey':SYNC_KEY,'Authorization':'Bearer '+SYNC_KEY,'Content-Type':'application/json','x-sync-code':getSyncCode()}}
 function scheduleSyncPush(){
@@ -1419,6 +1428,7 @@ async function cloudPull(notify){
     if(!res.ok)throw new Error('HTTP '+res.status+' '+(await res.text()).slice(0,120));
     const rows=await res.json();
     if(!rows.length){if(notify)toast('Belum ada data di cloud untuk kode ini','warn');return false}
+    try{localStorage.setItem(SYNC_BACKUP_KEY,JSON.stringify({app:'Wealthy',version:1,data:state}))}catch(e){}
     state=normalize(rows[0].data);
     syncCustomCats();processRecurring();saveState({noSync:true});renderView();
     lastSyncAt=new Date();
@@ -1437,5 +1447,4 @@ function renderSyncStatus(){
 syncCustomCats();
 processRecurring();
 saveState({noSync:true});
-if(getSyncAuto())cloudPull(false);
 renderView();
