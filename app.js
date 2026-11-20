@@ -1389,7 +1389,7 @@ if('serviceWorker' in navigator){
 let syncTimer=null,syncBusy=false,lastSyncAt=null;
 function getSyncCode(){return (localStorage.getItem(SYNC_CODE_KEY)||DEFAULT_SYNC_CODE).trim()}
 function setSyncCode(v){localStorage.setItem(SYNC_CODE_KEY,String(v).trim())}
-function getSyncAuto(){return localStorage.getItem(SYNC_AUTO_KEY)==='1'}
+function getSyncAuto(){return localStorage.getItem(SYNC_AUTO_KEY)!=='0'}
 function setSyncAuto(v){localStorage.setItem(SYNC_AUTO_KEY,v?'1':'0')}
 function syncHeaders(){return {'apikey':SYNC_KEY,'Authorization':'Bearer '+SYNC_KEY,'Content-Type':'application/json','x-sync-code':getSyncCode()}}
 function scheduleSyncPush(){
