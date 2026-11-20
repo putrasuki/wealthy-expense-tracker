@@ -1448,3 +1448,4 @@ syncCustomCats();
 processRecurring();
 saveState({noSync:true});
 renderView();
+if(/[?&]pull=1\b/.test(location.search))cloudPull(true);
