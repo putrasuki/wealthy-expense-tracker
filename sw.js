@@ -1,5 +1,5 @@
 /* Wealthy — service worker. Menyimpan app shell agar bisa dibuka tanpa internet. */
-const CACHE = 'wealthy-shell-v2';
+const CACHE = 'wealthy-shell-v3';
 const ASSETS = [
   './',
   './index.html',
