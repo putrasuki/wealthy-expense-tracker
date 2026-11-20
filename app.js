@@ -6,6 +6,11 @@
    INTEGER Rupiah (bukan float) agar perhitungan desimal selalu akurat.
    ========================================================================== */
 const KEY = 'wealthy_state_v2';
+const SYNC_URL = 'https://xzjmqwcbctatupwuyylk.supabase.co';
+const SYNC_KEY = 'sb_publishable_Ga8hnLSz_wuMi1In5FoTuQ_973GcQF4';
+const SYNC_CODE_KEY = 'wealthy_sync_code';
+const SYNC_AUTO_KEY = 'wealthy_sync_auto';
+const DEFAULT_SYNC_CODE = '73940281';
 
 const ICONS = {
   chart:'<path d="M4 20V10m6 10V4m6 16v-7m6 7H2"/>',
@@ -99,6 +104,7 @@ const NAV = [
   {id:'goals',label:'Target Tabungan',icon:'spark',title:'Target Tabungan',sub:'Wujudkan rencana finansial Anda'},
   {id:'accounts',label:'Dompet & Akun',icon:'layers',title:'Dompet & Akun',sub:'Kelola semua sumber dana Anda'},
   {id:'recurring',label:'Transaksi Berulang',icon:'repeat',title:'Transaksi Berulang',sub:'Otomatisasi gaji, tagihan & cicilan'},
+  {id:'sync',label:'Sinkronisasi',icon:'refresh',title:'Sinkronisasi Data',sub:'Samakan data HP dan laptop lewat cloud'},
   {id:'settings',label:'Pengaturan & Data',icon:'settings',title:'Pengaturan & Data',sub:'Backup, restore & preferensi aplikasi'}
 ];
 function catColor(c){return cssVar((CATS[c]||CATS['Lainnya']).color)}
@@ -187,9 +193,10 @@ function normalize(s){
   Object.keys(s.budgets).forEach(k=>{s.budgets[k]=parseAmount(s.budgets[k]);});
   return s;
 }
-function saveState(){
+function saveState(opts){
   try{ localStorage.setItem(KEY,JSON.stringify({app:'Wealthy',version:1,data:state})); }
-  catch(e){ toast('Gagal menyimpan: penyimpanan penuh','err'); }
+  catch(e){ toast('Gagal menyimpan: penyimpanan penuh','err'); return; }
+  if(!(opts&&opts.noSync)) scheduleSyncPush();
 }
 function emptyState(theme){
   return {version:1,theme:theme||'light',
@@ -370,11 +377,12 @@ function renderNav(){
 function renderView(){
   renderNav();
   const views={dashboard:viewDashboard,transactions:viewTransactions,budgets:viewBudgets,
-    goals:viewGoals,accounts:viewAccounts,recurring:viewRecurring,settings:viewSettings};
+    goals:viewGoals,accounts:viewAccounts,recurring:viewRecurring,sync:viewSync,settings:viewSettings};
   content.innerHTML=(views[ui.view]||views.dashboard)();
   window.scrollTo({top:0,behavior:'instant'});
   if(ui.view==='dashboard') renderCharts();
   if(ui.view==='transactions') renderTxList();
+  if(ui.view==='sync') renderSyncStatus();
 }
 
 /* ============================ SHARED ROW ============================ */
@@ -688,6 +696,31 @@ function viewRecurring(){
 }
 
 /* ============================ VIEW: PENGATURAN ============================ */
+function viewSync(){
+  const code=getSyncCode();
+  return '<div class="page-head"><div><h2>Sinkronisasi Data</h2><p>Samakan data antar perangkat dengan kode yang sama.</p></div></div>'+
+  '<div class="grid two-col">'+
+    '<div class="card"><div class="card-head"><div><div class="card-title">Kode Sinkron</div><div class="card-sub">Masukkan kode yang sama di semua perangkat</div></div>'+ico('refresh',17)+'</div>'+
+      '<div class="settings-row"><div><h4>Kode Anda</h4><p>8 karakter. Jangan dibagikan ke orang lain.</p></div>'+
+        '<input type="text" id="sync-code" class="sync-code-input" value="'+esc(code)+'" maxlength="16" placeholder="73940281"></div>'+
+      '<div class="settings-row"><div><h4>Sinkron otomatis</h4><p>Setiap perubahan data otomatis naik ke cloud.</p></div>'+
+        '<button class="btn-ghost btn-sm" data-action="sync-auto">'+ico(getSyncAuto()?'check':'x',15)+' '+(getSyncAuto()?'Aktif':'Nonaktif')+'</button></div>'+
+      '<div class="settings-row"><div><h4>Status</h4><p id="sync-status">Belum pernah sinkron</p></div><span class="pill transfer">'+esc(code)+'</span></div>'+
+      '<div style="display:flex;gap:8px;padding-top:14px;flex-wrap:wrap">'+
+        '<button class="btn-primary" data-action="sync-push">'+ico('arrow',15)+' Kirim ke Cloud</button>'+
+        '<button class="btn-ghost" data-action="sync-pull">'+ico('refresh',15)+' Ambil dari Cloud</button>'+
+        '<button class="btn-ghost" data-action="sync-save">Simpan Kode</button>'+
+      '</div>'+
+    '</div>'+
+    '<div class="card"><div class="card-head"><div><div class="card-title">Cara Pakai</div><div class="card-sub">HP ↔ Laptop</div></div></div>'+
+      '<div class="note-strip" style="margin:14px">'+ico('info',16)+'<div><strong>1.</strong> Di laptop, tekan <b>Kirim ke Cloud</b>.<br>'+
+      '<strong>2.</strong> Di HP, buka web yang sama, masuk menu ini, masukkan kode yang sama, tekan <b>Ambil dari Cloud</b>.<br>'+
+      '<strong>3.</strong> Aktifkan sinkron otomatis agar dua perangkat selalu sama.</div></div>'+
+      '<div class="settings-row"><div><h4>Data saat ini</h4><p>'+state.transactions.length+' transaksi · '+state.accounts.length+' dompet</p></div></div>'+
+      '<div class="settings-row"><div><h4>Penyimpanan</h4><p>Supabase · project wealthy-sync</p></div><span class="pill income">Online</span></div>'+
+    '</div>'+
+  '</div>';
+}
 function viewSettings(){
   return '<div class="page-head"><div><h2>Pengaturan & Data</h2><p>Export, import, dan kelola data Anda dengan aman.</p></div></div>'+
   '<div class="grid two-col">'+
@@ -1148,6 +1181,15 @@ document.addEventListener('click',function(e){
         toast('Chrome HP: menu ⋮ → Tambahkan ke Layar Utama. Safari: Bagikan → Tambahkan ke Layar Utama.','warn');
       }
       break;
+    case 'sync-save':{
+      const v=((document.getElementById('sync-code')||{}).value||'').trim();
+      if(v.length<6){toast('Kode minimal 6 karakter','err');break}
+      setSyncCode(v);renderView();toast('Kode sinkron disimpan');break;
+    }
+    case 'sync-auto':setSyncAuto(!getSyncAuto());renderView();break;
+    case 'sync-push':cloudPush(true);break;
+    case 'sync-pull':
+      askConfirm('Ambil data dari cloud?','Data di perangkat ini akan ditimpa oleh data terakhir di cloud.',()=>cloudPull(true));break;
     case 'export-json':exportJSON();break;
     case 'export-csv':exportCSV();break;
     case 'import-json':document.getElementById('import-file').click();break;
@@ -1334,8 +1376,64 @@ if('serviceWorker' in navigator){
   window.addEventListener('load',function(){navigator.serviceWorker.register('./sw.js').catch(function(){})});
 }
 
+/* ============================ SUPABASE SYNC ============================ */
+let syncTimer=null,syncBusy=false,lastSyncAt=null;
+function getSyncCode(){return (localStorage.getItem(SYNC_CODE_KEY)||DEFAULT_SYNC_CODE).trim()}
+function setSyncCode(v){localStorage.setItem(SYNC_CODE_KEY,String(v).trim())}
+function getSyncAuto(){return localStorage.getItem(SYNC_AUTO_KEY)!=='0'}
+function setSyncAuto(v){localStorage.setItem(SYNC_AUTO_KEY,v?'1':'0')}
+function syncHeaders(){return {'apikey':SYNC_KEY,'Authorization':'Bearer '+SYNC_KEY,'Content-Type':'application/json','x-sync-code':getSyncCode()}}
+function scheduleSyncPush(){
+  if(!getSyncAuto()||syncBusy)return;
+  clearTimeout(syncTimer);
+  syncTimer=setTimeout(function(){cloudPush(false)},1500);
+}
+async function cloudPush(notify){
+  const kode=getSyncCode();
+  if(kode.length<6){if(notify)toast('Kode sinkron minimal 6 karakter','err');return false}
+  if(syncBusy)return false;
+  syncBusy=true;
+  try{
+    const res=await fetch(SYNC_URL+'/rest/v1/wealthy_sync',{
+      method:'POST',
+      headers:Object.assign({},syncHeaders(),{'Prefer':'resolution=merge-duplicates,return=minimal'}),
+      body:JSON.stringify({kode:kode,data:state,updated_at:new Date().toISOString()})
+    });
+    if(!res.ok)throw new Error('HTTP '+res.status+' '+(await res.text()).slice(0,120));
+    lastSyncAt=new Date();
+    if(notify)toast('Data terkirim ke cloud');
+    renderSyncStatus();
+    return true;
+  }catch(e){if(notify)toast('Gagal kirim: '+e.message,'err');return false}
+  finally{syncBusy=false}
+}
+async function cloudPull(notify){
+  const kode=getSyncCode();
+  if(kode.length<6){if(notify)toast('Kode sinkron minimal 6 karakter','err');return false}
+  if(syncBusy)return false;
+  syncBusy=true;
+  try{
+    const res=await fetch(SYNC_URL+'/rest/v1/wealthy_sync?kode=eq.'+encodeURIComponent(kode)+'&select=data,updated_at',{headers:syncHeaders()});
+    if(!res.ok)throw new Error('HTTP '+res.status+' '+(await res.text()).slice(0,120));
+    const rows=await res.json();
+    if(!rows.length){if(notify)toast('Belum ada data di cloud untuk kode ini','warn');return false}
+    state=normalize(rows[0].data);
+    syncCustomCats();processRecurring();saveState({noSync:true});renderView();
+    lastSyncAt=new Date();
+    renderSyncStatus();
+    if(notify)toast('Data diambil dari cloud');
+    return true;
+  }catch(e){if(notify)toast('Gagal ambil: '+e.message,'err');return false}
+  finally{syncBusy=false}
+}
+function renderSyncStatus(){
+  const el=document.getElementById('sync-status');if(!el)return;
+  el.textContent=lastSyncAt?('Sinkron terakhir '+lastSyncAt.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})):'Belum pernah sinkron';
+}
+
 /* ============================ INIT ============================ */
 syncCustomCats();
 processRecurring();
 saveState();
+if(getSyncAuto()){clearTimeout(syncTimer);setTimeout(function(){cloudPull(false)},300)}
 renderView();
