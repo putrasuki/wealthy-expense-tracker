@@ -1392,6 +1392,7 @@ async function cloudPush(notify){
   const kode=getSyncCode();
   if(kode.length<6){if(notify)toast('Kode sinkron minimal 6 karakter','err');return false}
   if(syncBusy)return false;
+  clearTimeout(syncTimer);
   syncBusy=true;
   try{
     const res=await fetch(SYNC_URL+'/rest/v1/wealthy_sync',{
@@ -1411,6 +1412,7 @@ async function cloudPull(notify){
   const kode=getSyncCode();
   if(kode.length<6){if(notify)toast('Kode sinkron minimal 6 karakter','err');return false}
   if(syncBusy)return false;
+  clearTimeout(syncTimer);
   syncBusy=true;
   try{
     const res=await fetch(SYNC_URL+'/rest/v1/wealthy_sync?kode=eq.'+encodeURIComponent(kode)+'&select=data',{headers:syncHeaders()});
@@ -1434,6 +1436,6 @@ function renderSyncStatus(){
 /* ============================ INIT ============================ */
 syncCustomCats();
 processRecurring();
-saveState();
-if(getSyncAuto()){clearTimeout(syncTimer);setTimeout(function(){cloudPull(false)},300)}
+saveState({noSync:true});
+if(getSyncAuto())cloudPull(false);
 renderView();
