@@ -1397,7 +1397,7 @@ async function cloudPush(notify){
     const res=await fetch(SYNC_URL+'/rest/v1/wealthy_sync',{
       method:'POST',
       headers:Object.assign({},syncHeaders(),{'Prefer':'resolution=merge-duplicates,return=minimal'}),
-      body:JSON.stringify({kode:kode,data:state,updated_at:new Date().toISOString()})
+      body:JSON.stringify({kode:kode,data:state})
     });
     if(!res.ok)throw new Error('HTTP '+res.status+' '+(await res.text()).slice(0,120));
     lastSyncAt=new Date();
@@ -1413,7 +1413,7 @@ async function cloudPull(notify){
   if(syncBusy)return false;
   syncBusy=true;
   try{
-    const res=await fetch(SYNC_URL+'/rest/v1/wealthy_sync?kode=eq.'+encodeURIComponent(kode)+'&select=data,updated_at',{headers:syncHeaders()});
+    const res=await fetch(SYNC_URL+'/rest/v1/wealthy_sync?kode=eq.'+encodeURIComponent(kode)+'&select=data',{headers:syncHeaders()});
     if(!res.ok)throw new Error('HTTP '+res.status+' '+(await res.text()).slice(0,120));
     const rows=await res.json();
     if(!rows.length){if(notify)toast('Belum ada data di cloud untuk kode ini','warn');return false}
