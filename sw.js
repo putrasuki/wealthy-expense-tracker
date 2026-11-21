@@ -1,11 +1,11 @@
 /* Wealthy — service worker. Menyimpan app shell agar bisa dibuka tanpa internet. */
-const CACHE = 'wealthy-shell-v9';
+const CACHE = 'wealthy-shell-v10';
 const ASSETS = [
   './',
   './index.html',
-  './styles.css?v=9',
-  './app.js?v=9',
-  './vendor/chart.umd.min.js?v=9',
+  './styles.css?v=10',
+  './app.js?v=10',
+  './vendor/chart.umd.min.js?v=10',
   './manifest.webmanifest',
   './icon-192.png',
   './icon-512.png'

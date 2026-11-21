@@ -70,6 +70,7 @@ const CATS = {
   'Pendidikan':{icon:ico('book',16),color:'--c-pendidikan'},
   'Rumah':{icon:ico('house',16),color:'--c-rumah'},
   'Liburan':{icon:ico('plane',16),color:'--c-liburan'},
+  'Jualan':{icon:ico('bag',16),color:'--c-belanja'},
   'Gaji':{icon:ico('coins',16),color:'--c-gaji'},
   'Freelance':{icon:ico('briefcase',16),color:'--c-freelance'},
   'Investasi':{icon:ico('trend',16),color:'--c-investasi'},
@@ -100,6 +101,7 @@ const ACCT_TYPES = {
 };
 const NAV = [
   {id:'dashboard',label:'Dashboard',icon:'chart',title:'Dashboard',sub:'Ringkasan keuangan Anda hari ini'},
+  {id:'kasir',label:'Kasir Jualan',icon:'coins',title:'Kasir Jualan',sub:'Catat pemasukan cepat saat event'},
   {id:'transactions',label:'Transaksi',icon:'wallet',title:'Transaksi',sub:'Semua pemasukan, pengeluaran & transfer'},
   {id:'budgets',label:'Anggaran',icon:'target',title:'Anggaran Bulanan',sub:'Pantau batas pengeluaran per kategori'},
   {id:'goals',label:'Target Tabungan',icon:'spark',title:'Target Tabungan',sub:'Wujudkan rencana finansial Anda'},
@@ -377,7 +379,7 @@ function renderNav(){
 }
 function renderView(){
   renderNav();
-  const views={dashboard:viewDashboard,transactions:viewTransactions,budgets:viewBudgets,
+  const views={dashboard:viewDashboard,kasir:viewKasir,transactions:viewTransactions,budgets:viewBudgets,
     goals:viewGoals,accounts:viewAccounts,recurring:viewRecurring,sync:viewSync,settings:viewSettings};
   content.innerHTML=(views[ui.view]||views.dashboard)();
   window.scrollTo({top:0,behavior:'instant'});
@@ -697,6 +699,40 @@ function viewRecurring(){
 }
 
 /* ============================ VIEW: PENGATURAN ============================ */
+function viewKasir(){
+  const today=todayISO();
+  const list=state.transactions.filter(t=>t.type==='income'&&String(t.date).slice(0,10)===today)
+    .sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+  const total=sum(list.map(t=>t.amount));
+  const acc=state.accounts.find(a=>/tng/i.test(a.name))||state.accounts[0]||{};
+  return '<div class="page-head"><div><h2>Kasir Jualan</h2><p>Catat pemasukan cepat. Data langsung tersimpan & tersinkron.</p></div></div>'+
+  '<div class="kasir-wrap">'+
+    '<div class="card kasir-total"><div class="card-sub">PENJUALAN HARI INI</div>'+
+      '<div class="kasir-total-value">'+fmt(total)+'</div>'+
+      '<div class="kasir-total-meta">'+list.length+' transaksi · '+new Date().toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long',year:'numeric'})+'</div></div>'+
+    '<div class="card kasir-form"><form data-form="kasir">'+
+      '<div class="field"><label class="lbl">Nominal Pembayaran</label>'+
+        '<input type="text" name="amount" class="amount-input amt-format kasir-amount" inputmode="numeric" placeholder="Rp 0" autocomplete="off" required></div>'+
+      '<div class="kasir-chips">'+[10000,20000,50000,100000].map(v=>
+        '<button type="button" class="kasir-chip" data-action="kasir-amount" data-amount="'+v+'">'+fmt(v)+'</button>').join('')+'</div>'+
+      '<div class="kasir-grid">'+
+        '<div class="field"><label class="lbl">Nama Barang / Catatan</label><input type="text" name="note" placeholder="Contoh: Kaos hitam" autocomplete="off"></div>'+
+        '<div class="field"><label class="lbl">Kategori</label><select name="category">'+catOptions('income','Jualan',false)+'</select></div>'+
+        '<div class="field"><label class="lbl">Masuk ke Dompet</label><select name="accountId">'+accOptions(acc.id)+'</select></div>'+
+      '</div>'+
+      '<button type="submit" class="btn-primary kasir-submit">'+ico('check',18)+' Tambah Pemasukan</button>'+
+    '</form></div>'+
+    '<div class="card kasir-list"><div class="card-head"><div><div class="card-title">Penjualan Hari Ini</div>'+
+      '<div class="card-sub">Otomatis naik ke cloud saat ditambah</div></div>'+ico('coins',17)+'</div>'+
+      (list.length?list.map(t=>'<div class="kasir-row"><div class="kasir-row-ico">'+ico('bag',16)+'</div>'+
+        '<div class="kasir-row-main"><div class="kasir-row-title">'+esc(t.note||t.category||'Pemasukan')+'</div>'+
+        '<div class="kasir-row-sub">'+esc(t.category)+' · '+esc(String(t.date).slice(11,16))+'</div></div>'+
+        '<div class="kasir-row-amt">'+fmt(t.amount)+'</div>'+
+        '<button class="mini-btn del" data-action="kasir-delete" data-id="'+esc(t.id)+'" title="Hapus">'+ico('trash',15)+'</button></div>').join(''):
+        '<div class="empty"><p>Belum ada penjualan hari ini.</p></div>')+
+    '</div>'+
+  '</div>';
+}
 function viewSync(){
   const code=getSyncCode();
   return '<div class="page-head"><div><h2>Sinkronisasi Data</h2><p>Samakan data antar perangkat dengan kode yang sama.</p></div></div>'+
@@ -910,8 +946,8 @@ function toastUndo(msg,cb){
 function opts(arr,sel){return arr.map(x=>'<option value="'+esc(x.v)+'"'+(sel===x.v?' selected':'')+'>'+esc(x.l)+'</option>').join('')}
 let EXP_CATS=[],INC_CATS=[];
 function refreshCatLists(){
-  EXP_CATS=Object.keys(CATS).filter(c=>!['Gaji','Freelance','Investasi','Transfer'].includes(c));
-  INC_CATS=Object.keys(CATS).filter(c=>['Gaji','Freelance','Investasi'].includes(c)||state.customCategories.includes(c));
+  EXP_CATS=Object.keys(CATS).filter(c=>!['Jualan','Gaji','Freelance','Investasi','Transfer'].includes(c));
+  INC_CATS=Object.keys(CATS).filter(c=>['Jualan','Gaji','Freelance','Investasi'].includes(c)||state.customCategories.includes(c));
   if(!INC_CATS.includes('Lainnya'))INC_CATS.push('Lainnya');
 }
 refreshCatLists();
@@ -1083,6 +1119,18 @@ document.addEventListener('click',function(e){
       document.getElementById('sidebar').classList.remove('open');
       document.getElementById('overlay').classList.remove('show');
       renderView();break;
+    case 'kasir-amount':{
+      const inp=document.querySelector('.kasir-amount');
+      if(inp){inp.value=groupDigits(parseAmount(inp.value)+Number(el.dataset.amount||0));inp.focus()}
+      break;
+    }
+    case 'kasir-delete':{
+      const snap=snapshotState();
+      state.transactions=state.transactions.filter(x=>x.id!==id);
+      saveState();renderView();
+      toastUndo('Penjualan dihapus',()=>restoreState(snap));
+      break;
+    }
     case 'toggle-sidebar':
       document.getElementById('sidebar').classList.toggle('open');
       document.getElementById('overlay').classList.toggle('show');break;
@@ -1298,6 +1346,26 @@ document.addEventListener('submit',function(e){
     }
     processRecurring();saveState();closeModal();renderView();
     toast(old?'Transaksi diperbarui':(wantsRecurring?'Jadwal berulang dibuat':'Transaksi ditambahkan'));
+    return;
+  }
+  if(form==='kasir'){
+    const amount=parseAmount(d.get('amount'));
+    if(amount<=0){toast('Nominal harus lebih dari 0','err');return}
+    const accountId=d.get('accountId');
+    if(!accountId){toast('Pilih dompet terlebih dahulu','err');return}
+    let cat=String(d.get('category')||'Jualan');
+    if(cat==='__custom__'){
+      cat=registerCustomCategory(d.get('customCategory'));
+      if(!cat){toast('Nama kategori wajib diisi','err');return}
+    }
+    const now=new Date();
+    state.transactions.push({id:uid(),recurringId:null,auto:false,date:isoDT(now),type:'income',
+      amount,category:cat,subcategory:'',accountId,toAccountId:null,
+      note:String(d.get('note')||'').trim(),tags:[],
+      createdAt:now.toISOString(),updatedAt:now.toISOString()});
+    saveState();renderView();
+    const a=document.querySelector('.kasir-amount');if(a){a.value='';a.focus()}
+    toast('Pemasukan '+fmt(amount)+' tercatat');
     return;
   }
   if(form==='quick'){

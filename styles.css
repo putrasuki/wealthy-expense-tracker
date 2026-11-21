@@ -368,6 +368,40 @@ select{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns=
   .modal-foot{flex-direction:column-reverse} .modal-foot button{width:100%}
   .site-foot{flex-direction:column;gap:5px}
 }
+/* ============================ KASIR JUALAN ============================ */
+.kasir-wrap{display:flex;flex-direction:column;gap:16px;max-width:720px;margin:0 auto}
+.kasir-total{text-align:center;padding:26px 20px;border-left:3px solid var(--accent)}
+.kasir-total-value{font-family:var(--font-serif);font-size:42px;font-weight:600;letter-spacing:-.03em;
+  margin:8px 0 4px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.kasir-total-meta{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em}
+.kasir-form form{display:flex;flex-direction:column;gap:12px}
+.kasir-amount{font-family:var(--font-serif);font-size:30px!important;font-weight:600;text-align:center;
+  height:64px;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.kasir-chips{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.kasir-chip{padding:9px 4px;border:1px solid var(--line);background:var(--surface-alt);
+  font-family:var(--font-mono);font-size:11px;color:var(--ink);transition:.15s}
+.kasir-chip:hover{border-color:var(--accent);color:var(--accent)}
+.kasir-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.kasir-submit{height:54px;font-size:14px;width:100%;justify-content:center}
+.kasir-list .card-head{margin-bottom:6px}
+.kasir-row{display:flex;align-items:center;gap:12px;padding:12px 2px;border-bottom:1px solid var(--line-soft)}
+.kasir-row:last-child{border-bottom:0}
+.kasir-row-ico{width:34px;height:34px;flex:none;display:grid;place-items:center;border:1px solid var(--line);color:var(--accent)}
+.kasir-row-main{flex:1;min-width:0}
+.kasir-row-title{font-size:12.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kasir-row-sub{font-size:10px;color:var(--muted);margin-top:3px}
+.kasir-row-amt{font-family:var(--font-mono);font-size:12.5px;font-weight:700;color:var(--pos);white-space:nowrap}
+
+@media(max-width:620px){
+  .kasir-wrap{gap:12px}
+  .kasir-total{padding:20px 14px}
+  .kasir-total-value{font-size:32px}
+  .kasir-amount{font-size:26px!important;height:58px}
+  .kasir-grid{grid-template-columns:1fr;gap:10px}
+  .kasir-chip{font-size:10px;padding:8px 2px}
+  .kasir-row-amt{font-size:11.5px}
+}
+
 /* ============================ MOBILE POLISH ============================ */
 html,body{max-width:100%;overflow-x:hidden;overscroll-behavior-x:none}
 button,a,input,select,textarea{touch-action:manipulation}
