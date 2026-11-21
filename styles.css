@@ -305,6 +305,13 @@ select{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns=
 .type-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .type-tab{padding:10px;border:1px solid var(--line);font-size:11.5px;font-weight:700;color:var(--muted);transition:.15s}
 .type-tab.active{color:var(--bg);background:var(--ink);border-color:var(--ink)}
+.event-switch{display:flex;align-items:flex-start;gap:10px;padding:11px 12px;border:1px solid var(--line);
+  background:var(--surface-alt);cursor:pointer;margin-top:2px;transition:.15s}
+.event-switch input{margin-top:2px;accent-color:var(--accent);width:16px;height:16px;flex:none}
+.event-switch b{display:block;font-size:12px;font-weight:800}
+.event-switch small{display:block;font-size:9.5px;color:var(--muted);margin-top:3px;line-height:1.45}
+.event-switch.on{border-color:var(--accent);background:var(--accent-soft)}
+.event-switch.on b{color:var(--accent)}
 .amount-input{font-family:var(--font-serif);font-size:23px;font-variant-numeric:tabular-nums;padding:11px 12px!important}
 .hint{font-size:10px;color:var(--muted);line-height:1.6}
 .repeat-box{border:1px dashed var(--line);padding:14px;display:flex;flex-direction:column;gap:13px;background:var(--surface-alt)}

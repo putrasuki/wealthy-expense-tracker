@@ -1059,6 +1059,8 @@ function openTxModal(id){
   '<form data-form="tx" data-id="'+(t?t.id:'')+'"><div class="modal-body">'+
     '<div class="type-tabs">'+[['income','Pemasukan'],['expense','Pengeluaran'],['transfer','Transfer']].map(x=>
       '<button type="button" class="type-tab'+(type===x[0]?' active':'')+'" data-action="tx-type" data-type="'+x[0]+'">'+x[1]+'</button>').join('')+'</div>'+
+    '<label class="event-switch"><input type="checkbox" name="eventMode" id="tx-event-mode"'+(t&&isEventTx(t)?' checked':'')+'>'+
+      '<span><b>Catat ke Kas Event</b><small>Uang jualan terpisah · tidak nambah saldo pribadi</small></span></label>'+
     '<div class="field"><label class="lbl">Nominal (Rupiah)</label><input type="text" name="amount" class="amount-input amt-format" inputmode="numeric" placeholder="Rp 0" value="'+groupDigits(t?t.amount:'')+'" required></div>'+
     '<div class="form-grid">'+
       '<div class="field"><label class="lbl">Kategori</label><select name="category" id="tx-category">'+catOptions(type,t?t.category:(type==='income'?'Gaji':type==='transfer'?'Transfer':'Makan & Minum'),!t)+'</select></div>'+
@@ -1081,6 +1083,7 @@ function openTxModal(id){
   '</div><div class="modal-foot"><button type="button" class="btn-ghost" data-action="close-modal">Batal</button>'+
     '<button type="submit" class="btn-primary">'+ico('check',15)+' '+(t?'Simpan Perubahan':'Simpan Transaksi')+'</button></div></form>';
   openModal(html,true);
+  if(t&&isEventTx(t)){const sw=modalRoot.querySelector('.event-switch');if(sw)sw.classList.add('on')}
 }
 function setModalType(type){
   document.querySelectorAll('.type-tab').forEach(b=>b.classList.toggle('active',b.dataset.type===type));
@@ -1356,6 +1359,23 @@ document.addEventListener('input',function(e){
 
 document.addEventListener('change',function(e){
   const t=e.target;
+  if(t.id==='tx-event-mode'){
+    const f=t.form;
+    if(f){
+      ensureEventAccount();
+      const acc=f.elements.accountId;
+      if(acc&&eventAccount())acc.value=eventAccount().id;
+      const sw=t.closest('.event-switch');
+      if(sw)sw.classList.toggle('on',t.checked);
+      if(t.checked){
+        const active=f.querySelector('.type-tab.active');
+        const cat=f.elements.category;
+        if(active&&active.dataset.type==='income'&&cat&&['Gaji','Freelance','Investasi'].indexOf(cat.value)>=0&&
+           Array.prototype.some.call(cat.options,function(o){return o.value==='Jualan'}))cat.value='Jualan';
+      }
+    }
+    return;
+  }
   if(t.id==='f-range'){
     ui.filters.range=t.value;
     const c=document.getElementById('custom-range');
@@ -1399,7 +1419,8 @@ document.addEventListener('submit',function(e){
     const active=document.querySelector('.type-tab.active');
     const type=active?active.dataset.type:'expense';
     const amount=parseAmount(d.get('amount'));
-    const accountId=d.get('accountId');
+    let accountId=d.get('accountId');
+    if(d.get('eventMode')){ensureEventAccount();accountId=eventAccount().id;}
     const toAccountId=type==='transfer'?d.get('toAccountId'):null;
     if(amount<=0){toast('Nominal harus lebih dari 0','err');return}
     if(!accountId){toast('Pilih dompet terlebih dahulu','err');return}
@@ -1601,6 +1622,7 @@ function renderSyncStatus(){
 }
 
 /* ============================ INIT ============================ */
+ensureEventAccount();
 syncCustomCats();
 processRecurring();
 saveState({noSync:true});
