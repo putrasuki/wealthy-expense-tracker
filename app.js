@@ -97,8 +97,15 @@ const ACCT_TYPES = {
   cash:{icon:ico('cash',17),label:'Tunai / Kas',color:'--pos'},
   bank:{icon:ico('bank',17),label:'Rekening Bank',color:'--c-transport'},
   ewallet:{icon:ico('phone',17),label:'E-Wallet',color:'--c-belanja'},
-  credit:{icon:ico('card',17),label:'Kartu Kredit',color:'--neg'}
+  credit:{icon:ico('card',17),label:'Kartu Kredit',color:'--neg'},
+  event:{icon:ico('bag',17),label:'Kas Event / Jualan',color:'--c-belanja'}
 };
+function isEventAccount(a){return !!a&&a.type==='event'}
+function isEventTx(t){return !!t&&(isEventAccount(byId(state.accounts,t.accountId))||isEventAccount(byId(state.accounts,t.toAccountId)))}
+function ensureEventAccount(){
+  if(state.accounts.some(isEventAccount))return;
+  state.accounts.push({id:'kas_event',name:'Kas Event',type:'event',initialBalance:0,createdAt:new Date().toISOString()});
+}
 const NAV = [
   {id:'dashboard',label:'Dashboard',icon:'chart',title:'Dashboard',sub:'Ringkasan keuangan Anda hari ini'},
   {id:'kasir',label:'Kasir Jualan',icon:'coins',title:'Kasir Jualan',sub:'Catat pemasukan cepat saat event'},
@@ -315,8 +322,8 @@ function balances(){
 }
 function netWorthAt(until){
   const map={};
-  state.accounts.forEach(a=>map[a.id]=Number(a.initialBalance)||0);
-  state.transactions.filter(t=>!until||t.date<=until).forEach(t=>{
+  state.accounts.filter(a=>!isEventAccount(a)).forEach(a=>map[a.id]=Number(a.initialBalance)||0);
+  state.transactions.filter(t=>!isEventTx(t)&&(!until||t.date<=until)).forEach(t=>{
     const amt=Number(t.amount)||0;
     if(t.type==='income'&&map[t.accountId]!==undefined)map[t.accountId]+=amt;
     else if(t.type==='expense'&&map[t.accountId]!==undefined)map[t.accountId]-=amt;
@@ -329,7 +336,7 @@ function netWorthAt(until){
 }
 function netWorth(){return netWorthAt(null)}
 function monthStats(m){
-  const list=state.transactions.filter(t=>monthKey(t.date)===m && t.type!=='transfer');
+  const list=state.transactions.filter(t=>monthKey(t.date)===m && t.type!=='transfer' && !isEventTx(t));
   const income=sum(list.filter(t=>t.type==='income').map(t=>t.amount));
   const expense=sum(list.filter(t=>t.type==='expense').map(t=>t.amount));
   return {income,expense,net:income-expense,list};
@@ -701,13 +708,13 @@ function viewRecurring(){
 /* ============================ VIEW: PENGATURAN ============================ */
 function viewKasir(){
   const today=todayISO();
-  const list=state.transactions.filter(t=>t.type==='income'&&String(t.date).slice(0,10)===today)
+  const acc=state.accounts.find(isEventAccount)||state.accounts[0]||{};
+  const list=state.transactions.filter(t=>t.type==='income'&&t.accountId===acc.id&&String(t.date).slice(0,10)===today)
     .sort((a,b)=>String(b.date).localeCompare(String(a.date)));
   const total=sum(list.map(t=>t.amount));
-  const acc=state.accounts.find(a=>/tng/i.test(a.name))||state.accounts[0]||{};
-  return '<div class="page-head"><div><h2>Kasir Jualan</h2><p>Catat pemasukan cepat. Data langsung tersimpan & tersinkron.</p></div></div>'+
+  return '<div class="page-head"><div><h2>Kasir Jualan</h2><p>Pemasukan event dicatat terpisah. Tidak menambah saldo pribadi Anda.</p></div></div>'+
   '<div class="kasir-wrap">'+
-    '<div class="card kasir-total"><div class="card-sub">PENJUALAN HARI INI</div>'+
+    '<div class="card kasir-total"><div class="card-sub">PENJUALAN EVENT HARI INI</div>'+
       '<div class="kasir-total-value">'+fmt(total)+'</div>'+
       '<div class="kasir-total-meta">'+list.length+' transaksi · '+new Date().toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long',year:'numeric'})+'</div></div>'+
     '<div class="card kasir-form"><form data-form="kasir">'+
@@ -723,7 +730,7 @@ function viewKasir(){
       '<button type="submit" class="btn-primary kasir-submit">'+ico('check',18)+' Tambah Pemasukan</button>'+
     '</form></div>'+
     '<div class="card kasir-list"><div class="card-head"><div><div class="card-title">Penjualan Hari Ini</div>'+
-      '<div class="card-sub">Otomatis naik ke cloud saat ditambah</div></div>'+ico('coins',17)+'</div>'+
+      '<div class="card-sub">Kas Event · terpisah dari TNG & saldo pribadi</div></div>'+ico('coins',17)+'</div>'+
       (list.length?list.map(t=>'<div class="kasir-row"><div class="kasir-row-ico">'+ico('bag',16)+'</div>'+
         '<div class="kasir-row-main"><div class="kasir-row-title">'+esc(t.note||t.category||'Pemasukan')+'</div>'+
         '<div class="kasir-row-sub">'+esc(t.category)+' · '+esc(String(t.date).slice(11,16))+'</div></div>'+
@@ -1116,6 +1123,7 @@ document.addEventListener('click',function(e){
   switch(a){
     case 'nav':
       ui.view=el.dataset.view;
+      if(ui.view==='kasir'){ensureEventAccount();saveState({noSync:true})}
       document.getElementById('sidebar').classList.remove('open');
       document.getElementById('overlay').classList.remove('show');
       renderView();break;
@@ -1466,6 +1474,7 @@ function scheduleSyncPush(){
   syncTimer=setTimeout(function(){cloudPush(false)},1500);
 }
 async function cloudPush(notify){
+  if(location.protocol==='file:')return false;
   const kode=getSyncCode();
   if(kode.length<6){if(notify)toast('Kode sinkron minimal 6 karakter','err');return false}
   if(syncBusy)return false;
@@ -1486,6 +1495,7 @@ async function cloudPush(notify){
   finally{syncBusy=false}
 }
 async function cloudPull(notify){
+  if(location.protocol==='file:')return false;
   const kode=getSyncCode();
   if(kode.length<6){if(notify)toast('Kode sinkron minimal 6 karakter','err');return false}
   if(syncBusy)return false;
