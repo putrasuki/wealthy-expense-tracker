@@ -106,6 +106,13 @@ function ensureEventAccount(){
   if(state.accounts.some(isEventAccount))return;
   state.accounts.push({id:'kas_event',name:'Kas Event',type:'event',initialBalance:0,createdAt:new Date().toISOString()});
 }
+function eventAccount(){return state.accounts.find(isEventAccount)||null}
+function eventTxList(){
+  const acc=eventAccount();
+  return acc?state.transactions.filter(t=>t.accountId===acc.id||t.toAccountId===acc.id):[];
+}
+function personalTxList(){return state.transactions.filter(t=>!isEventTx(t))}
+function hasPersonalData(){return personalTxList().length>0||netWorth()!==0}
 const NAV = [
   {id:'dashboard',label:'Dashboard',icon:'chart',title:'Dashboard',sub:'Ringkasan keuangan Anda hari ini'},
   {id:'kasir',label:'Kasir Jualan',icon:'coins',title:'Kasir Jualan',sub:'Catat pemasukan cepat saat event'},
@@ -343,7 +350,7 @@ function monthStats(m){
 }
 function expenseByCategory(m){
   const out={};
-  state.transactions.filter(t=>monthKey(t.date)===m&&t.type==='expense')
+  state.transactions.filter(t=>monthKey(t.date)===m&&t.type==='expense'&&!isEventTx(t))
     .forEach(t=>{out[t.category]=(out[t.category]||0)+t.amount});
   return out;
 }
@@ -361,7 +368,7 @@ function budgetStatus(cat,m){
   const limit=Number(state.budgets[cat])||0;
   const key=m||currentMonth();
   const isCurrent=key===currentMonth();
-  const spent=sum(state.transactions.filter(t=>monthKey(t.date)===key&&t.type==='expense'&&t.category===cat).map(t=>t.amount));
+  const spent=sum(state.transactions.filter(t=>monthKey(t.date)===key&&t.type==='expense'&&t.category===cat&&!isEventTx(t)).map(t=>t.amount));
   const pct=limit>0?(spent/limit)*100:0;
   const color=pct>90?'bad':pct>=70?'warn':'good';
   const remaining=limit-spent;
@@ -390,7 +397,9 @@ function renderView(){
     goals:viewGoals,accounts:viewAccounts,recurring:viewRecurring,sync:viewSync,settings:viewSettings};
   content.innerHTML=(views[ui.view]||views.dashboard)();
   window.scrollTo({top:0,behavior:'instant'});
+  if(ui.view!=='kasir')['eventTrend','eventCat'].forEach(destroyChart);
   if(ui.view==='dashboard') renderCharts();
+  if(ui.view==='kasir') renderEventCharts();
   if(ui.view==='transactions') renderTxList();
   if(ui.view==='sync') renderSyncStatus();
 }
@@ -448,7 +457,7 @@ function viewDashboard(){
   const ratePrev=prev.income>0?((prev.income-prev.expense)/prev.income)*100:0;
   const pct=(a,b)=>b>0?((a-b)/b)*100:null;
   const label=shortMonthLabel(m);
-  const recent=state.transactions.filter(t=>monthKey(t.date)===m).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
+  const recent=state.transactions.filter(t=>monthKey(t.date)===m&&!isEventTx(t)).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
   const budgets=Object.keys(state.budgets).sort((a,b)=>budgetStatus(b,m).pct-budgetStatus(a,m).pct).slice(0,4);
   const goals=state.goals.slice().sort((a,b)=>(b.saved/b.target)-(a.saved/a.target)).slice(0,3);
   const monthBar='<div class="month-nav">'+
@@ -523,7 +532,7 @@ function renderInsights(){
   }
   const weekday=['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
   const wd={};
-  state.transactions.filter(t=>t.type==='expense'&&(new Date()-new Date(t.date))<=30*864e5)
+  state.transactions.filter(t=>t.type==='expense'&&!isEventTx(t)&&(new Date()-new Date(t.date))<=30*864e5)
     .forEach(t=>{const k=new Date(t.date).getDay();wd[k]=(wd[k]||0)+t.amount});
   const topWd=Object.keys(wd).sort((a,b)=>wd[b]-wd[a])[0];
   if(topWd!==undefined) out.push({c:'var(--warn)',i:'clock',t:'Pengeluaran terbesar dalam 30 hari terjadi pada <strong>'+weekday[topWd]+'</strong> ('+fmtCompact(wd[topWd])+').',s:'Pola mingguan'});
@@ -536,7 +545,7 @@ function renderInsights(){
   }
   const over=Object.keys(state.budgets).map(c=>({c,b:budgetStatus(c)})).filter(x=>x.b.limit>0&&x.b.pct>90);
   if(over.length) out.push({c:'var(--neg)',i:'alert',t:'Anggaran <strong>'+esc(over[0].c)+'</strong> sudah terpakai '+over[0].b.pct.toFixed(0)+'%. Sisa aman '+fmt(over[0].b.safe)+' per hari.',s:'Peringatan anggaran'});
-  const biggest=state.transactions.filter(t=>t.type==='expense'&&monthKey(t.date)===m).sort((a,b)=>b.amount-a.amount)[0];
+  const biggest=state.transactions.filter(t=>t.type==='expense'&&monthKey(t.date)===m&&!isEventTx(t)).sort((a,b)=>b.amount-a.amount)[0];
   if(biggest) out.push({c:'var(--accent)',i:'info',t:'Pengeluaran tunggal terbesar bulan ini: <strong>'+esc(biggest.note||biggest.category)+'</strong> sebesar '+fmt(biggest.amount)+'.',s:'Transaksi terbesar'});
   if(!out.length) out.push({c:'var(--accent)',i:'spark',t:'Belum ada catatan. Mulai dengan mencatat transaksi pertama Anda — insight akan muncul sendiri.',s:'Mulai dari sini'});
   return out.slice(0,5).map(x=>'<div class="insight" style="--i-color:'+x.c+'"><div class="insight-ico">'+ico(x.i,15)+'</div><div><p>'+x.t+'</p><small>'+x.s+'</small></div></div>').join('');
@@ -738,6 +747,14 @@ function viewKasir(){
         '<button class="mini-btn del" data-action="kasir-delete" data-id="'+esc(t.id)+'" title="Hapus">'+ico('trash',15)+'</button></div>').join(''):
         '<div class="empty"><p>Belum ada penjualan hari ini.</p></div>')+
     '</div>'+
+    '<div class="kasir-charts">'+
+      '<div class="card"><div class="card-head"><div><div class="card-title">Penjualan Event · 7 Hari</div>'+
+        '<div class="card-sub">Chart baru, khusus Kas Event</div></div>'+ico('chart',17)+'</div>'+
+        '<div class="chart-box event-chart-box" id="event-trend-box"></div></div>'+
+      '<div class="card"><div class="card-head"><div><div class="card-title">Per Barang / Kategori</div>'+
+        '<div class="card-sub">Tidak memakai data pribadi</div></div>'+ico('bag',17)+'</div>'+
+        '<div class="chart-box event-chart-box" id="event-cat-box"></div></div>'+
+    '</div>'+
   '</div>';
 }
 function viewSync(){
@@ -811,7 +828,7 @@ function renderCharts(){
   }
   const nb=document.getElementById('networth-box');
   if(nb){
-    if(!state.transactions.length&&netWorth()===0){nb.innerHTML=chartEmpty('Belum ada data kekayaan.')}
+    if(!hasPersonalData()){nb.innerHTML=chartEmpty('Belum ada data kekayaan pribadi.')}
     else if(hasChart){
       nb.innerHTML='<canvas id="netChart"></canvas>';
       ui.charts.networth=new Chart(document.getElementById('netChart'),{
@@ -845,13 +862,13 @@ function renderCharts(){
       const d=new Date();d.setDate(d.getDate()-i);
       const key=isoD(d);
       labels.push(i%5===0?d.toLocaleDateString('id-ID',{day:'numeric',month:'short'}):'');
-      inc.push(sum(state.transactions.filter(t=>t.type==='income'&&t.date.slice(0,10)===key).map(t=>t.amount)));
-      exp.push(sum(state.transactions.filter(t=>t.type==='expense'&&t.date.slice(0,10)===key).map(t=>t.amount)));
+      inc.push(sum(state.transactions.filter(t=>t.type==='income'&&!isEventTx(t)&&t.date.slice(0,10)===key).map(t=>t.amount)));
+      exp.push(sum(state.transactions.filter(t=>t.type==='expense'&&!isEventTx(t)&&t.date.slice(0,10)===key).map(t=>t.amount)));
     }
   }
   const box=document.getElementById('cashflow-box');
   if(box){
-    if(!state.transactions.length){box.innerHTML=chartEmpty('Belum ada arus kas.')}
+    if(!personalTxList().length){box.innerHTML=chartEmpty('Belum ada arus kas pribadi.')}
     else if(hasChart){
       box.innerHTML='<canvas id="cashChart"></canvas>';
       ui.charts.cashflow=new Chart(document.getElementById('cashChart'),{
@@ -896,6 +913,68 @@ function renderCharts(){
       dbox.innerHTML='<div style="display:flex;flex-direction:column;gap:10px;padding:12px">'+entries.map(e=>
         '<div><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px"><span>'+esc(e[0])+'</span><span>'+fmt(e[1])+'</span></div>'+
         '<div class="prog accent"><span style="width:'+(e[1]/total*100)+'%;background:'+catColor(e[0])+'"></span></div></div>').join('')+'</div>';
+    }
+  }
+}
+/* --- Chart khusus Kas Event (canvas & data terpisah dari dashboard) --- */
+function renderEventCharts(){
+  ['eventTrend','eventCat'].forEach(destroyChart);
+  const muted=cssVar('--muted'),grid=cssVar('--line-soft');
+  const hasChart=typeof window.Chart!=='undefined';
+  if(hasChart){Chart.defaults.color=muted;Chart.defaults.font.family=getComputedStyle(document.body).fontFamily;}
+  const list=eventTxList().filter(t=>t.type==='income');
+  /* Penjualan 7 hari terakhir */
+  const labels=[],vals=[];
+  for(let i=6;i>=0;i--){
+    const d=new Date();d.setDate(d.getDate()-i);
+    const key=isoD(d);
+    labels.push(d.toLocaleDateString('id-ID',{day:'numeric',month:'short'}));
+    vals.push(sum(list.filter(t=>String(t.date).slice(0,10)===key).map(t=>t.amount)));
+  }
+  const tb=document.getElementById('event-trend-box');
+  if(tb){
+    if(!list.length){tb.innerHTML=chartEmpty('Belum ada penjualan event.')}
+    else if(hasChart){
+      tb.innerHTML='<canvas id="eventTrendChart"></canvas>';
+      ui.charts.eventTrend=new Chart(document.getElementById('eventTrendChart'),{
+        type:'bar',
+        data:{labels,datasets:[{label:'Penjualan',data:vals,backgroundColor:cssVar('--accent'),
+          borderRadius:0,borderSkipped:false,maxBarThickness:26}]},
+        options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+          plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+fmt(c.parsed.y)}}},
+          scales:{x:{grid:{display:false},ticks:{color:muted,font:{size:9},maxRotation:0,maxTicksLimit:7}},
+            y:{grid:{color:grid},border:{display:false},ticks:{color:muted,font:{size:9},callback:v=>fmtCompact(v)}}}}
+      });
+    }else{
+      const max=Math.max(1,...vals);
+      tb.innerHTML='<div class="fallback-chart">'+labels.map((l,i)=>'<div class="fb-col"><div class="fb-bars">'+
+        '<div class="fb-bar" style="height:'+(vals[i]/max*100)+'%;background:'+cssVar('--accent')+'"></div></div>'+
+        '<div class="fb-lbl">'+l+'</div></div>').join('')+'</div>';
+    }
+  }
+  /* Per barang / kategori */
+  const byItem={};
+  list.forEach(t=>{const k=String(t.note||t.category||'Penjualan').trim()||'Penjualan';byItem[k]=(byItem[k]||0)+t.amount});
+  const items=Object.entries(byItem).sort((a,b)=>b[1]-a[1]);
+  const palette=['--accent','--c-liburan','--c-freelance','--c-gaji','--c-investasi','--c-kesehatan'];
+  const cb=document.getElementById('event-cat-box');
+  if(cb){
+    if(!items.length){cb.innerHTML=chartEmpty('Belum ada barang terjual.')}
+    else if(hasChart){
+      cb.innerHTML='<canvas id="eventCatChart"></canvas>';
+      ui.charts.eventCat=new Chart(document.getElementById('eventCatChart'),{
+        type:'doughnut',
+        data:{labels:items.map(e=>e[0]),datasets:[{data:items.map(e=>e[1]),
+          backgroundColor:items.map((e,i)=>cssVar(palette[i%palette.length])),borderColor:cssVar('--surface'),borderWidth:2,hoverOffset:6}]},
+        options:{responsive:true,maintainAspectRatio:false,cutout:'70%',
+          plugins:{legend:{position:'right',labels:{usePointStyle:true,boxWidth:8,padding:10,font:{size:10}}},
+            tooltip:{callbacks:{label:c=>' '+c.label+': '+fmt(c.parsed)+' ('+(sum(items.map(e=>e[1]))?(c.parsed/sum(items.map(e=>e[1]))*100).toFixed(1):0)+'%)'}}}}
+      });
+    }else{
+      const total=sum(items.map(e=>e[1]))||1;
+      cb.innerHTML='<div style="display:flex;flex-direction:column;gap:10px;padding:12px">'+items.map((e,i)=>
+        '<div><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px"><span>'+esc(e[0])+'</span><span>'+fmt(e[1])+'</span></div>'+
+        '<div class="prog accent"><span style="width:'+(e[1]/total*100)+'%;background:'+cssVar(palette[i%palette.length])+'"></span></div></div>').join('')+'</div>';
     }
   }
 }
